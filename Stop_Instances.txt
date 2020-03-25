@@ -1,0 +1,43 @@
+def lambda_handler (event, context):
+    import boto3
+    import botocore
+    import logging
+    
+    # setup simple logging for INFO 
+    logging.basicConfig()
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    success="SUCCESS"
+
+    region="us-east-1"
+    # Setup up the boto3
+    ec2 = boto3.resource('ec2',region_name=region)
+    ec2_client = boto3.client('ec2',region_name=region)
+	# Use the filter() method of the instances collection
+    # to retrieve all the running EC2 instances
+    filter1 = [
+        {
+            'Name': 'tag:Environment',
+            'Values': ['Dev']
+        }    
+    ]
+
+    # filter the instances 
+    instances = ec2.instances.filter(Filters=filter1)
+
+    # locate all running instances 
+    RunningInstances = [instance.id for instance in instances]
+    for instance in RunningInstances:
+     response=ec2_client.describe_instance_status(InstanceIds=[instance])
+     response1=response['InstanceStatuses']
+     if len(response1) != 0 :
+      response2=response1[0]
+      response3=response2['InstanceState']
+      if response3['Name'] == 'running':
+       #Stopping Development Instances
+       print ("Stopping Instance " + instance)
+       ec2.instances.filter(InstanceIds=[instance]).stop()
+     else:
+      print ("Instance already in Stopped State " + instance)
+    return success

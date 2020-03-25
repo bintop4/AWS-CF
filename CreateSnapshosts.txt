@@ -1,0 +1,36 @@
+def lambda_handler(event, context):
+    import boto3
+    import datetime
+
+    # Enter the region your instances are in. Include only the region without specifying Availability Zone; e.g., 'us-east-1'
+    region = 'us-east-1'
+    today = "{:%m/%d/%Y}".format(datetime.date.today())
+    today_str = str (today)
+    
+    # Setup up the boto3
+    ec2 = boto3.resource('ec2',region_name=region)
+    ec2_client = boto3.client('ec2',region_name=region)
+    # Use the filter() method of the instances collection
+    # to retrieve all the running EC2 instances
+
+    filters = [{
+        'Name': 'tag:OSBackup',
+        'Values': ['True']
+        }
+        ]
+
+    # filter the instances 
+    instances = ec2.instances.filter(Filters=filters)    
+    
+    # filter the Volumes 
+    for instance in instances:
+        InstanceId = instance.id
+        volumes = instance.volumes.all()
+        for volume in volumes:
+         response = ec2_client.create_snapshot(VolumeId=volume.id,Description= InstanceId + " - " + volume.id + " Snapshot Taken on " + today_str)
+         SnapshotId = response['SnapshotId']
+         ec2_client.create_tags(Resources=[SnapshotId],Tags=[{'Key': 'Type' , 'Value': 'SnapBackups'}])
+         print ("Snapshot successfully completed on " + volume.id)
+        #End of For 
+    #End of For     
+#End of Definition

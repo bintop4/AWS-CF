@@ -1,0 +1,47 @@
+def lambda_handler(event, context):
+    import sys
+    import boto3
+    from datetime import datetime, timedelta
+    region = 'us-east-1'
+    
+    # Setup up the boto3
+    ec2 = boto3.resource('ec2',region_name=region)
+    ec2_client = boto3.client('ec2',region_name=region)
+    # Use the filter() method of the instances collection
+    # to retrieve all the running EC2 instances
+    days = 10 
+    delete_time = datetime.utcnow() - timedelta(days=days)
+    delete_time = str(delete_time)
+    delete_time = delete_time.split( )
+    delete_time = delete_time[0]
+    delete_time = datetime.strptime(delete_time,'%Y-%m-%d')
+    
+    filters = [{
+        'Name': 'tag:Type',
+        'Values': ['SnapBackups']
+        }
+        ]
+    
+    print 'Deleting any snapshots older than {days} days'.format(days=days)
+
+    response = ec2_client.describe_snapshots(Filters=filters) 
+    snapshots = response['Snapshots']
+
+    deletion_counter = 0
+    size_counter = 0
+    for snapshot in snapshots:
+	    StartTime = snapshot['StartTime']
+	    StartTime = str(StartTime)
+	    StartTime = StartTime.split( )
+	    StartTime = StartTime[0]
+	    start_time = datetime.strptime(StartTime,'%Y-%m-%d')
+	    if (start_time) < (delete_time) :
+	        deletion_counter = deletion_counter + 1
+	        volume_size = snapshot['VolumeSize']
+	        size_counter = size_counter + volume_size
+	        ec2_client.delete_snapshot(SnapshotId=snapshot['SnapshotId'], DryRun=False)
+	        print ('Deleted  ' + snapshot['SnapshotId'])
+    print 'Deleted {number} snapshots totalling {size} GB'.format(number=deletion_counter,size=size_counter)
+    return 'Success'
+			
+			
