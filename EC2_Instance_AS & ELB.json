@@ -1,0 +1,866 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "AWS CloudFormation template that will create EC2 Instances in Prod Environment",
+	"Parameters": {
+		"EnvType": {
+			"Description": "Environment type.",
+			"Default": "Prod",
+			"Type": "String",
+			"AllowedValues": ["MGMT", "Dev", "SIT", "SITB", "Prod", "DR"],
+			"ConstraintDescription": "Must be a MGMT, Dev. SIT, SITB, Prod or DR"
+		},
+		"VPC": {
+			"Description": "Please select the Prod VPC from the drop down List",
+			"Type": "AWS::EC2::VPC::Id"
+		},
+		"KeyName": {
+			"Description": "Please select the Prod SSH Key from the drop down list",
+			"Type": "AWS::EC2::KeyPair::KeyName"
+		}
+	},
+	"Conditions": {
+		"Prod": {"Fn::Equals": [{"Ref": "EnvType"}, "Prod"]}
+		},
+	"Resources": {
+		"PRODDMZSG" : {
+			"Type" : "AWS::EC2::SecurityGroup",
+			"Condition": "Prod",
+			"Properties" : {
+				"GroupName" : "THFPRODVPC-DMZSG",
+				"GroupDescription" : "DMZ Security Group of Prod VPC",
+				"VpcId" : {"Ref" : "VPC"},
+				"SecurityGroupIngress" : [
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "80",
+						"ToPort" : "80",
+						"CidrIp" : "10.37.3.0/24"
+					 },
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "80",
+						"ToPort" : "80",
+						"CidrIp" : "10.37.4.0/24"
+					 },
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "80",
+						"ToPort" : "80",
+						"CidrIp" : "10.37.5.0/24"
+					 },
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "80",
+						"ToPort" : "80",
+						"CidrIp" : "10.37.6.0/24"
+					 },
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "443",
+						"ToPort" : "443",
+						"CidrIp" : "10.37.3.0/24"
+					 },
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "443",
+						"ToPort" : "443",
+						"CidrIp" : "10.37.4.0/24"
+					 },
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "443",
+						"ToPort" : "443",
+						"CidrIp" : "10.37.5.0/24"
+					 },
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "443",
+						"ToPort" : "443",
+						"CidrIp" : "10.37.6.0/24"
+					 },
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "22",
+						"ToPort" : "22",
+						"CidrIp" : "10.40.1.0/24"
+					 },
+					{
+						"IpProtocol" : "tcp",
+						"FromPort" : "22",
+						"ToPort" : "22",
+						"CidrIp" : "10.40.2.0/24"
+					 }
+					 ],
+				"SecurityGroupEgress" : [
+				    {
+					 "IpProtocol" : "tcp",
+					 "FromPort" : "80",
+					 "ToPort" : "80",
+					 "CidrIp" : "0.0.0.0/0"
+					 },
+					{
+					 "IpProtocol" : "tcp",
+					 "FromPort" : "443",
+					 "ToPort" : "443",
+					 "CidrIp" : "0.0.0.0/0"
+					 }
+					]
+					}	
+				},
+		"ELBSG" : {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "Prod",
+			"Properties": {
+			"GroupName": "THFPRODVPC-ELBSG",
+			"GroupDescription": "ELB Security Group of Prod VPC",
+			"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{	
+					 "IpProtocol": "tcp",
+					 "FromPort": "80",
+					 "ToPort": "80",
+					 "CidrIp": "0.0.0.0/0"
+					},
+					{	
+					 "IpProtocol": "tcp",
+					 "FromPort": "443",
+					 "ToPort": "443",
+					 "CidrIp": "0.0.0.0/0"
+					},
+					{	
+					 "IpProtocol": "tcp",
+					 "FromPort": "8080",
+					 "ToPort": "8080",
+					 "CidrIp": "0.0.0.0/0"
+					}
+					],
+				"SecurityGroupEgress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.37.3.0/24 "
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.37.4.0/24"
+					}
+					]
+			    }
+		   },	
+		"PRODWEBSG" : {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "Prod",
+			"Properties": {
+				"GroupName": "THFPRODVPC-WEBSG",
+				"GroupDescription": "WEB Security Group of Prod VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"SourceSecurityGroupId" : { "Ref" : "ELBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"SourceSecurityGroupId" : { "Ref" : "ELBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "8080",
+						"ToPort": "8080",
+						"SourceSecurityGroupId" : { "Ref" : "ELBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "8080",
+						"ToPort": "8080",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.2.0/24"
+					}
+				], 
+				"SecurityGroupEgress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.37.3.0/24 "
+					},	 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.37.4.0/24 "
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "10.37.3.0/24 "
+					},	 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "10.37.4.0/24 "
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.37.3.0/24 "
+					},	 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.37.4.0/24 "
+					}, 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4502",
+						"ToPort": "4502",
+						"CidrIp": "10.37.3.0/24 "
+					},	 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4502",
+						"ToPort": "4502",
+						"CidrIp": "10.37.4.0/24 "
+					}, 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7402",
+						"ToPort": "7402",
+						"CidrIp": "10.37.3.0/24 "
+					},	 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7402",
+						"ToPort": "7402",
+						"CidrIp": "10.37.4.0/24 "
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.37.3.0/24 "
+					},	 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.37.4.0/24 "
+					}]
+					}
+				},
+		"PRODPUBSG": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "Prod",
+			"Properties": {
+				"GroupName": "THFPRODVPC-PUBSG",
+				"GroupDescription": "PUBLISHER Security Group of Prod VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"SourceSecurityGroupId" : { "Ref" : "PRODWEBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4502",
+						"ToPort": "4502",
+						"SourceSecurityGroupId" : { "Ref" : "PRODWEBSG" }
+					},	
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7402",
+						"ToPort": "7402",
+						"SourceSecurityGroupId" : { "Ref" : "PRODWEBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"SourceSecurityGroupId" : { "Ref" : "PRODWEBSG" }
+					}, 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"SourceSecurityGroupId" : { "Ref" : "PRODAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"SourceSecurityGroupId" : { "Ref" : "PRODAUTSG" }
+					}, 
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.40.2.0/24"
+					}]
+				"SecurityGroupEgress": [{   
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"CidrIp": "10.37.3.0/24"
+					},
+					{   
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"CidrIp": "10.37.4.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "389",
+						"ToPort": "389",
+						"CidrIp": "10.37.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "389",
+						"ToPort": "389",
+						"CidrIp": "10.37.4.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"CidrIp": "10.37.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"CidrIp": "10.37.4.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "465",
+						"ToPort": "465",
+						"CidrIp": "0.0.0.0/0"
+					}]
+					}
+				}
+		"PRODAUTSG": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "Prod",
+			"Properties": {
+				"GroupName": "THFPRODVPC-AUTSG",
+				"GroupDescription": "AUTHOR Security Group of PROD VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"SourceSecurityGroupId" : { "Ref" : "ELBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4502",
+						"ToPort": "4502",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4118",
+						"ToPort": "4118",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4122",
+						"ToPort": "4122",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4502",
+						"ToPort": "4502",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7402",
+						"ToPort": "7402",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7402",
+						"ToPort": "7402",
+						"CidrIp": "10.40.2.0/24"
+					}
+				],
+				"SecurityGroupEgress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.37.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.37.4.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.37.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.37.4.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4120",
+						"ToPort": "4120",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4118",
+						"ToPort": "4118",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4122",
+						"ToPort": "4122",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "25",
+						"ToPort": "25",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.37.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.37.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.37.4.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.37.4.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"CidrIp": "10.37.5.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"CidrIp": "10.37.6.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "465",
+						"ToPort": "465",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"CidrIp": "10.37.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"CidrIp": "10.37.4.0/24"
+					}
+				]
+			}
+		},
+		"PRODADSG": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "Prod",
+			"Properties": {
+				"GroupName": "THFPRODVPC-ADSG",
+				"GroupDescription": "AD Security Group of PROD VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"SourceSecurityGroupId" : { "Ref" : "PRODAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"SourceSecurityGroupId" : { "Ref" : "PRODPUBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "389",
+						"ToPort": "389",
+						"SourceSecurityGroupId" : { "Ref" : "PRODAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "389",
+						"ToPort": "389",
+						"SourceSecurityGroupId" : { "Ref" : "PRODPUBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4120",
+						"ToPort": "4120",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4118",
+						"ToPort": "4118",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4122",
+						"ToPort": "4122",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "3389",
+						"ToPort": "3389",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "3389",
+						"ToPort": "3389",
+						"CidrIp": "10.40.2.0/24"
+					}
+				],
+			"SecurityGroupEgress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "4118",
+						"ToPort": "4118",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4122",
+						"ToPort": "4122",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4120",
+						"ToPort": "4120",
+						"CidrIp": "10.40.1.103/32"
+					}]
+			}
+		},
+		"PRODDBSG": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "Prod",
+			"Properties": {
+				"GroupName": "THFPRODVPC-DBSG",
+				"GroupDescription": "DB Security Group of PROD VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"SourceSecurityGroupId" : { "Ref" : "PRODAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"SourceSecurityGroupId" : { "Ref" : "PRODPUBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4120",
+						"ToPort": "4120",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4118",
+						"ToPort": "4118",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "3389",
+						"ToPort": "3389",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "3389",
+						"ToPort": "3389",
+						"CidrIp": "10.40.2.0/24"
+					}
+				],
+			"SecurityGroupEgress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "4118",
+						"ToPort": "4118",
+						"CidrIp": "10.40.1.103/32"
+					},	
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4122",
+						"ToPort": "4122",
+						"CidrIp": "10.40.1.103/32"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4120",
+						"ToPort": "4120",
+						"CidrIp": "10.40.1.103/32"
+					}]	
+			}
+		},
+		"PRODELB" : {
+			"Type" : "AWS::ElasticLoadBalancingV2::LoadBalancer",
+			"Properties" : {    
+				"LoadBalancerAttributes" :
+					[ { "Key" : "access_logs.s3.enabled", "Value" : "true" },
+					  { "Key" : "access_logs.s3.bucket", "Value" : "hf-accesslogs" },
+                      { "Key" : "access_logs.s3.prefix", "Value" : "PROD_ELB" }
+			    	],
+				"Name" : "THFPRODWebserverELB",
+				"Scheme" : "internet-facing",
+				"SecurityGroups" : [ { "Ref" : "ELBSG" } ],
+				"Subnets" : [ 
+					{"Fn::ImportValue" : {"Fn::Sub" : "PROD-DMZSUB1"}},
+					{"Fn::ImportValue" : {"Fn::Sub" : "PROD-DMZSUB2"}}
+				],
+				"Tags" : [{
+					"Key": "Name",
+					"Value": "THFPRODWebserverELB"
+					}],
+				"Type" : "application",
+				"IpAddressType" : "ipv4"
+			}
+		},
+		"PRODELBLISTENER" : {
+			"Type" : "AWS::ElasticLoadBalancingV2::Listener",
+			"Properties" : {
+				"Certificates" : [ 
+							{
+								"CertificateArn" : "arn:aws:acm:us-east-1:199968258943:certificate/7fb50049-b31a-4d6a-b246-36f7ca4fe254"
+							}
+							],
+				"DefaultActions" : 
+							[{
+								"Type" : "forward",
+								"TargetGroupArn" : { "Ref" : "PRODELBTargetGroup" }
+							}],	
+								
+				"LoadBalancerArn" : { "Ref" : "PRODELB" },
+				"Port" : "443",
+				"Protocol" : "HTTPS"
+				
+			}
+		},
+				
+		"PRODELBTargetGroup" : {
+			"Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
+			"Properties" : {
+				"HealthCheckIntervalSeconds" : "60",
+				"HealthCheckPath" : "/home.html",
+				"HealthCheckPort" : "80",
+				"HealthCheckProtocol" : "HTTP",
+				"HealthCheckTimeoutSeconds" : "30",
+				"HealthyThresholdCount" : "3",
+				"Matcher" : {
+					"HttpCode" : "200"
+				},
+				"Name" : "THFPRODWEBTargetGroup",
+				"Port" : "80",
+				"Protocol" : "HTTP",
+				"Tags" : [ { 
+					"Key": "Name",
+					"Value": "THFPRODWEBTargetGroup"
+					}],
+				"TargetGroupAttributes" : [{
+					"Key": "deregistration_delay.timeout_seconds",
+					"Value": "30"
+					}],
+				"Targets": [
+					{ "Id": {"Ref" : "PRODWSASG"}, "Port": "80" }
+					],
+				"TargetType" : "instance",
+				"UnhealthyThresholdCount" : "3",
+				"VpcId" : {"Fn::ImportValue" : {"Fn::Sub" : "PROD-VPCId"}}
+			}
+		},
+		"PRODWSASG" : {
+			"Type" : "AWS::AutoScaling::LaunchConfiguration",
+			"Condition": "Prod",
+			"Properties": {
+				"AssociatePublicIpAddress" : "true",
+				"ImageId" : "ami-a310b7d9",
+				"InstanceType" : "t2.medium",
+				"IamInstanceProfile" : "arn:aws:iam::199968258943:instance-profile/EC2_EIP_Route_Management_Role",
+				"KeyName" : { "Ref" : "KeyName" },
+				"SecurityGroups" : [{ "Ref" : "PRODWEBSG" }]	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+					
+					 

@@ -1,0 +1,129 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "VPN Connection Cloud Formation template for Hartford - v0.1",
+	"Parameters": {
+		"VPCID": {
+			"Description": "Select the VPC in which the VPN Connection is being setup",
+			"Type": "AWS::EC2::VPC::Id"
+			},
+		
+		"VPCENV": {
+			"Type": "String",
+			"Description": "Select the environment for creating the VPC",
+			"AllowedValues": [ "MGMT", "DEV" , "SIT" , "SITB" , "DRPROD" , "PROD" , "DRMGMT" ]
+		}		
+	},
+
+	"Conditions": {
+		"MGMT" : {"Fn::Equals": [{"Ref": "VPCENV"}, "MGMT"]},
+		"NONMGMT" : { "Fn::Not" : [ { "Fn::Equals" : [ { "Ref" : "VPCENV" }, "MGMT" ] } ] }	
+			
+	},		
+	
+	"Resources": {
+		"VPNGW": {
+			"Type": "AWS::EC2::VPNGateway",
+			"Properties": {
+				"Type": "ipsec.1",
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"VPNGW" ]]}}]
+			}
+		},
+			
+		"VPNGWASS": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"Properties": {
+				"VpcId": { "Ref" : "VPCID" },
+				"VpnGatewayId": { "Ref" : "VPNGW" }
+			}
+		},
+	
+		"HWCGW1": {
+			"Type": "AWS::EC2::CustomerGateway",
+			"Condition": "MGMT",
+			"Properties": {
+				"BgpAsn": "65000",
+				"IpAddress": "162.136.31.15",
+				"Tags": [{ "Key" : "Name", "Value" : "THFCGW1" }],
+				"Type": "ipsec.1"
+			}
+		},
+		
+		"HWCGW2": {
+			"Type": "AWS::EC2::CustomerGateway",
+			"Condition": "MGMT",
+			"Properties": {
+				"BgpAsn": "65000",
+				"IpAddress": "162.136.24.50",
+				"Tags": [{ "Key" : "Name", "Value" : "THFCGW2" }],
+				"Type": "ipsec.1"
+			}
+		},
+			
+		"HFVPNConn1" : {
+			"Type" : "AWS::EC2::VPNConnection",
+			"Condition": "MGMT",
+			"Properties" : {
+				"Type" : "ipsec.1",
+				"StaticRoutesOnly" : "true",
+				"CustomerGatewayId" : {"Ref" : "HWCGW1"},
+				"VpnGatewayId" : { "Ref" : "VPNGW" },
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"-AWSVPN1" ]]}}]
+				
+			}
+		},
+				
+		"HFVPNConn2" : {
+			"Type" : "AWS::EC2::VPNConnection",
+			"Condition": "MGMT",
+			"Properties" : {
+				"Type" : "ipsec.1",
+				"StaticRoutesOnly" : "true",
+				"CustomerGatewayId" : {"Ref" : "HWCGW2"},
+				"VpnGatewayId" : { "Ref" : "VPNGW" },
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"-AWSVPN2" ]]}}]
+			}
+		},
+		
+		"HFVPNConnnm1" : {
+			"Type" : "AWS::EC2::VPNConnection",
+			"Condition": "NONMGMT",
+			"Properties" : {
+				"Type" : "ipsec.1",
+				"StaticRoutesOnly" : "true",
+				"CustomerGatewayId" : {"Fn::ImportValue" : {"Fn::Sub" : "HWCGW1-Id"}},
+				"VpnGatewayId" : { "Ref" : "VPNGW" },
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"-AWSVPN1" ]]}}]
+				
+			}
+		},
+				
+		"HFVPNConnnm2" : {
+			"Type" : "AWS::EC2::VPNConnection",
+			"Condition": "NONMGMT",
+			"Properties" : {
+				"Type" : "ipsec.1",
+				"StaticRoutesOnly" : "true",
+				"CustomerGatewayId" : {"Fn::ImportValue" : {"Fn::Sub" : "HWCGW2-Id"}},
+				"VpnGatewayId" : { "Ref" : "VPNGW" },
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"-AWSVPN2" ]]}}]
+			}
+		}					
+	},
+
+	"Outputs": {
+	"HWCGW1" : {
+		"Condition": "MGMT",
+		"Description": "Hartford Customer Gateway1",
+		"Value": { "Ref" : "HWCGW1" },
+		"Export": { "Name" : { "Fn::Sub": "HWCGW1-Id" }}
+	},	
+
+	"HWCGW2" : {
+		"Condition": "MGMT",
+		"Description": "Hartford Customer Gateway2",
+		"Value": { "Ref" : "HWCGW2" },
+		"Export": { "Name" : { "Fn::Sub": "HWCGW2-Id" }}
+	}
+	
+}
+}

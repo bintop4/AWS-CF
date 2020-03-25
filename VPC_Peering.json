@@ -1,0 +1,140 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "VPC Peering to Management VPC Cloud Formation Template for Hartford - v0.1",
+	"Parameters": {
+		"VPCID": {
+			"Description": "Select the VPC which needs to be peered with Management/DR Management VPC",
+			"Type": "AWS::EC2::VPC::Id"
+			},
+			
+		"VPCENV": {
+			"Type": "String",
+			"Description": "Select the environment of the VPC that is peered with the MGMT VPC",
+			"AllowedValues": [ "DEV" , "SIT" , "SITB" , "DRPROD" , "PROD" ]
+			},
+		
+		"VPCCIDR" : {
+			"Type": "String",
+			"Description": "Select the CIDR Block of the VPC that is peered with the MGMT VPC",
+			"AllowedValues": [ "10.37.0.0/16" , "10.38.0.0/16" , "10.39.0.0/16" , "10.41.0.0/16" , "10.42.0.0/16" ]
+			}	
+		},
+	
+	"Conditions" : {
+			"DR_PROD_VPC" : { "Fn::Equals" : [ { "Ref": "VPCENV" }, "DRPROD"] },
+			
+			"PROD_VPC" : { "Fn::Or" : [ 
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "PROD" ] },					
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "SIT" ] },
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "SITB" ] },
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "DEV" ] }
+							]
+						},	
+			"PubSubnet" : { "Fn::Or" : [ 
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "PROD" ] },
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "SIT" ] }
+							]
+						}
+		
+		},
+	
+	"Resources": {
+		"VPCPeering" : {
+			"Type": "AWS::EC2::VPCPeeringConnection",
+			"Condition" : "PROD_VPC",
+			"Properties": {
+			"VpcId": {"Fn::ImportValue" : {"Fn::Sub" : "MGMT-VPCId"}},
+			"PeerVpcId": {"Ref": "VPCID"}
+			}
+		},
+		
+		"DRVPCPeering" : {
+			"Type": "AWS::EC2::VPCPeeringConnection",
+			"Condition" : "DR_PROD_VPC",
+			"Properties": {
+			"VpcId": {"Fn::ImportValue" : {"Fn::Sub" : "DRMGMT-VPCId"}},
+			"PeerVpcId": {"Ref": "VPCID"}
+			}
+		},
+		
+		"MGMTMNRouteupdate" : {
+			"Type" : "AWS::EC2::Route",
+			"Condition" : "PROD_VPC",
+			"Properties": {
+				"DestinationCidrBlock" : { "Ref" : "VPCCIDR" }, 
+				"VpcPeeringConnectionId": { "Ref" : "VPCPeering" },
+				"RouteTableId": { "Fn::ImportValue" : {"Fn::Sub" : "MGMT-MNRTB" } }
+			}
+		},
+
+		"MGMTDMZRouteupdate" : {
+			"Type" : "AWS::EC2::Route",
+			"Condition" : "PROD_VPC",
+			"Properties": {
+				"DestinationCidrBlock" : { "Ref" : "VPCCIDR" }, 
+				"VpcPeeringConnectionId": { "Ref" : "VPCPeering" },
+				"RouteTableId": { "Fn::ImportValue" : {"Fn::Sub" : "MGMT-DMZRTB" } }
+			}
+		},
+		
+		"DRMGMTMNRouteupdate" : {
+			"Type" : "AWS::EC2::Route",
+			"Condition" : "DR_PROD_VPC",
+			"Properties": {
+				"DestinationCidrBlock" : { "Ref" : "VPCCIDR" }, 
+				"VpcPeeringConnectionId": { "Ref" : "DRVPCPeering" },
+				"RouteTableId": { "Fn::ImportValue" : {"Fn::Sub" : "DRMGMT-MNRTB" } }
+			}
+		},
+
+		"DRMGMTDMZRouteupdate" : {
+			"Type" : "AWS::EC2::Route",
+			"Condition" : "DR_PROD_VPC",
+			"Properties": {
+				"DestinationCidrBlock" : { "Ref" : "VPCCIDR" }, 
+				"VpcPeeringConnectionId": { "Ref" : "DRVPCPeering" },
+				"RouteTableId": { "Fn::ImportValue" : {"Fn::Sub" : "DRMGMT-DMZRTB" } }
+			}
+		},
+
+		"VPCMNRouteupdate" : {
+			"Type" : "AWS::EC2::Route",
+				"Condition" : "PROD_VPC",
+				"Properties": {
+				"DestinationCidrBlock" : "10.40.0.0/16",
+				"VpcPeeringConnectionId": { "Ref" : "VPCPeering" },
+				"RouteTableId": { "Fn::ImportValue" : {"Fn::Sub" : "${VPCENV}-MNRTB" } }
+			}
+		},
+		
+		"VPCDMZRouteupdate" : {
+			"Type" : "AWS::EC2::Route",
+				"Condition" : "PubSubnet",
+				"Properties": {
+				"DestinationCidrBlock" : "10.40.0.0/16", 
+				"VpcPeeringConnectionId": { "Ref" : "VPCPeering" },
+				"RouteTableId": { "Fn::ImportValue" : {"Fn::Sub" : "${VPCENV}-DMZRTB" } }
+			}
+		},
+		
+		"DRVPCMNRouteupdate" : {
+			"Type" : "AWS::EC2::Route",
+				"Condition" : "DR_PROD_VPC",
+				"Properties": {
+				"DestinationCidrBlock" : "10.43.0.0/16",
+				"VpcPeeringConnectionId": { "Ref" : "DRVPCPeering" },
+				"RouteTableId": { "Fn::ImportValue" : {"Fn::Sub" : "${VPCENV}-MNRTB" } }
+			}
+		},
+		
+		"DRVPCDMZRouteupdate" : {
+			"Type" : "AWS::EC2::Route",
+				"Condition" : "DR_PROD_VPC",
+				"Properties": {
+				"DestinationCidrBlock" : "10.43.0.0/16",
+				"VpcPeeringConnectionId": { "Ref" : "DRVPCPeering" },
+				"RouteTableId": { "Fn::ImportValue" : {"Fn::Sub" : "${VPCENV}-DMZRTB" } }
+			}
+		}		
+	}
+}	

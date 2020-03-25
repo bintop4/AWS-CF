@@ -1,0 +1,361 @@
+{
+"AWSTemplateFormatVersion": "2010-09-09",
+"Description": "VPC Creation Cloud Formation Template for Hartford - v0.2",
+"Parameters": {
+	"VPCENV": {
+						"Type": "String",
+						"Description": "Select the environment for creating the VPC",
+						"AllowedValues": [ "MGMT", "DEV" , "SIT" , "SITB" , "DRPROD" , "PROD" , "DRMGMT" ]
+			},
+		
+	"VPCCIDR": {
+                        "Type": "String",
+                        "Description": "IP Address Range for the VPC",
+                        "MinLength": "9",
+                        "MaxLength": "18",
+                        "ConstraintDescription": "Must be a Valid CIDR block following the pattern X.X.X.X/X",
+                        "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+				},	
+				
+	"DMZSubnetBlocks": {
+						"Type": "CommaDelimitedList",
+						"Description": "Please input 2 IP Address Range for DMZ Subnet seperated by Comma (eg: 10.0.1.0/24,10.0.2.0/24)",
+						"Default": "Don't enter any values for Dev and SITB VPC"
+						},
+	
+	"APPSubnetBlocks":{
+						"Type": "CommaDelimitedList",
+						"Description": "Please input 2 IP Address Range for APP Subnet seperated by Comma (eg: 10.0.1.0/24,10.0.2.0/24)"
+						},
+				
+	"DBSubnetBlocks":{
+						"Type": "CommaDelimitedList",
+						"Description": "Please input 2 IP Address Range for DB Subnet seperated by Comma (eg: 10.0.1.0/24,10.0.2.0/24)"
+						}
+},						
+
+"Metadata": {
+	"AWS::CloudFormation::Interface" : {
+			"ParameterGroups": [
+				{
+					"Label": { "default" : "VPC Configuration" },
+                    "Parameters": [ "VPCCIDR" , "VPCENV" ]
+				},
+			
+				{
+					"Label": { "default" : "DMZ Subnet Configuration" },
+					"Parameters": [ "DMZSubnetBlocks" ]
+				},
+				
+				{
+					"Label": { "default" : "APP Subnet Configuration"},
+					"Parameters": [ "APPSubnetBlocks" ]
+				},
+				
+				{
+					"Label": { "default" : "DB Subnet Configuration"},
+					"Parameters": [ "DBSubnetBlocks" ]
+				}
+				]
+	}			
+},
+
+"Conditions": {
+		"PubSubnet": { "Fn::Or" : [ 
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "PROD" ] },
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "DRPROD" ] },
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "SIT" ] },
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "DRMGMT" ] },
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "MGMT" ] }
+							]
+						},
+		"Prod" : { "Fn::Or" : [ 
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "PROD" ] },
+							{ "Fn::Equals" : [ { "Ref" : "VPCENV" }, "MGMT" ] }
+							]
+						},
+		"NONSIT" : { 	"Fn::And": [
+							{"Condition": "PubSubnet"},
+							{"Condition": "Prod"}
+							]
+				},
+		
+		"Route" : { "Fn::Equals" : [ { "Ref" : "VPCENV" }, "PROD" ] },
+						
+		"DRRoute" : { "Fn::Equals" : [ { "Ref" : "VPCENV" }, "DRPROD" ] }
+	},		
+
+"Resources": {
+	"VPC": {
+			"Type": "AWS::EC2::VPC",
+			"Properties": {
+				"CidrBlock": { "Ref": "VPCCIDR" },
+                "EnableDnsSupport": "true",
+                "EnableDnsHostnames": "true",
+                "InstanceTenancy": "default",
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{ "Ref": "VPCENV"},"VPC"	 ]]}}]	
+			}
+    },
+	
+	"APPSUB1": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"AvailabilityZone": { "Fn::Select" : [ 0, { "Fn::GetAZs" : { "Ref" : "AWS::Region" } } ] },
+				"CidrBlock": { "Fn::Select" : [ 0, { "Ref" : "APPSubnetBlocks" } ] },
+				"VpcId": { "Ref" : "VPC" },
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"APPAZ1" ]]}}]
+			}	
+	},
+	
+	"APPSUB2": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"AvailabilityZone": { "Fn::Select" : [ 1, { "Fn::GetAZs" : { "Ref" : "AWS::Region" } } ] },
+				"CidrBlock": { "Fn::Select" : [ 1, { "Ref" : "APPSubnetBlocks" } ] },
+				"VpcId": { "Ref" : "VPC" },
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"APPAZ2" ]]}}]
+			}	
+	},
+	
+	"DBSUB1": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"AvailabilityZone": { "Fn::Select" : [ 0, { "Fn::GetAZs" : { "Ref" : "AWS::Region" } } ] },
+				"CidrBlock": { "Fn::Select" : [ 0, { "Ref" : "DBSubnetBlocks" } ] },
+				"VpcId": { "Ref" : "VPC" },
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"DBAZ1" ]]}}]
+			}	
+	},
+	
+	"DBSUB2": {
+			"Type": "AWS::EC2::Subnet",
+			"Condition": "Prod",
+			"Properties": {
+				"AvailabilityZone": { "Fn::Select" : [ 1, { "Fn::GetAZs" : { "Ref" : "AWS::Region" } } ] },
+				"CidrBlock": { "Fn::Select" : [ 1, { "Ref" : "DBSubnetBlocks" } ] },
+				"VpcId": { "Ref" : "VPC" },
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"DBAZ2" ]]}}] 
+			}	
+	},
+	
+	"DMZSUB1": {
+			"Type": "AWS::EC2::Subnet",
+			"Condition": "PubSubnet",
+			"Properties": {
+				"AvailabilityZone": { "Fn::Select" : [ 0, { "Fn::GetAZs" : { "Ref" : "AWS::Region" } } ] },
+				"CidrBlock": { "Fn::Select" : [ 0, { "Ref" : "DMZSubnetBlocks" } ] },
+				"VpcId": { "Ref" : "VPC" },
+				"MapPublicIpOnLaunch": "true",
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"DMZAZ1" ]]}}]
+			}	
+	},			
+	
+	"DMZSUB2": {
+			"Type": "AWS::EC2::Subnet",
+			"Condition": "NONSIT",
+			"Properties": {
+				"AvailabilityZone": { "Fn::Select" : [ 1, { "Fn::GetAZs" : { "Ref" : "AWS::Region" } } ] },
+				"CidrBlock": { "Fn::Select" : [ 1, { "Ref" : "DMZSubnetBlocks" } ] },
+				"VpcId": { "Ref" : "VPC" },
+				"MapPublicIpOnLaunch": "true",
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"DMZAZ2" ]]}}]
+			}	
+	},
+	
+	"DMZIGW": {
+			"Type": "AWS::EC2::InternetGateway",
+			"Condition": "PubSubnet",
+			"Properties": {
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"DMZIGW" ]]}}]
+			}
+	},
+
+	"DMZIGWASS": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"Condition": "PubSubnet",
+			"Properties": {
+				"InternetGatewayId": { "Ref" : "DMZIGW" },
+				"VpcId": { "Ref" : "VPC" }
+			}
+	},			
+	
+	"DMZRT": {
+			"Type": "AWS::EC2::RouteTable",
+			"Condition": "PubSubnet",
+			"Properties": {
+				"VpcId": { "Ref" : "VPC" },
+				"Tags": [{ "Key" : "Name", "Value" : {"Fn::Join" : [ "",["THF",{"Ref": "VPCENV"},"DMZRT" ]]}}]
+			}				
+	},
+
+	"DMZRTASS1": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"Condition": "PubSubnet",
+			"Properties": {
+				"SubnetId" : { "Ref" : "DMZSUB1" },
+				"RouteTableId": { "Ref" : "DMZRT" }
+			}
+	},			
+	
+	"DMZRTASS2": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"Condition": "NONSIT",
+			"Properties": {
+				"SubnetId" : { "Ref" : "DMZSUB2" },
+				"RouteTableId": { "Ref" : "DMZRT" }
+			}
+	},			
+		
+	"DMZRoute": {
+			"Type" : "AWS::EC2::Route",
+			"Condition": "PubSubnet",
+			"Properties": {
+				"DestinationCidrBlock" : "0.0.0.0/0", 
+				"GatewayId": { "Ref" : "DMZIGW" },
+				"RouteTableId": { "Ref" : "DMZRT" }
+			}
+	}
+},
+
+"Outputs": {
+	"VPCID" : {
+		"Description": "VPCID",
+		"Value": { "Ref" : "VPC" },
+		"Export": { "Name" : { "Fn::Sub": "${VPCENV}-VPCId" }}
+	},
+	
+	"DMZSUB1ID" : {
+		"Condition": "PubSubnet",
+		"Description": "DMZ SubnetID1",
+		"Value": { "Ref" : "DMZSUB1" },
+		"Export": { "Name" : { "Fn::Sub" : "${VPCENV}-DMZSUB1" }}
+	},
+	
+	"DMZSUB2ID" : {
+		"Condition": "NONSIT",
+		"Description": "DMZ SubnetID2",
+		"Value": { "Ref" : "DMZSUB2" },
+		"Export": { "Name" : { "Fn::Sub" : "${VPCENV}-DMZSUB2" }}
+	},
+
+	"APPSUB1ID" : {
+		"Description": "APP SubnetID1",
+		"Value": { "Ref" : "APPSUB1" },
+		"Export": { "Name" : { "Fn::Sub" : "${VPCENV}-APPSUB1" }}
+	},
+	
+	"APPSUB2ID" : {
+		"Description": "APP SubnetID2",
+		"Value": { "Ref" : "APPSUB2" },
+		"Export": { "Name" : { "Fn::Sub" : "${VPCENV}-APPSUB2" }}
+	},
+	
+	"DBSUB1ID" : {
+		"Description": "DB SubnetID1",
+		"Value": { "Ref" : "DBSUB1" },
+		"Export": { "Name" : { "Fn::Sub" : "${VPCENV}-DBSUB1" }}
+	},
+	
+	"DBSUB2ID" : {
+		"Condition": "Prod",
+		"Description": "DB SubnetID2",
+		"Value": { "Ref" : "DBSUB2" },
+		"Export": { "Name" : { "Fn::Sub" : "${VPCENV}-DBSUB2" }}
+	},
+	
+	"SITBMNRTB" : {
+		"Condition": "Route",
+		"Description": "Main Route Table for SITB VPC",
+		"Value": { "Fn::Sub" : "rtb-10907a6a" },
+		"Export": { "Name" : { "Fn::Sub" : "SITB-MNRTB" }}
+	},
+
+	"MGMTMNRTB" : {
+		"Condition": "Route",
+		"Description": "Main Route Table for MGMT VPC",
+		"Value": { "Fn::Sub" : "rtb-2de50e57" },
+		"Export": { "Name" : { "Fn::Sub" : "MGMT-MNRTB" }}
+	},
+
+	"MGMTDMZRTB" : {
+		"Condition": "Route",
+		"Description": "DMZ Route Table for MGMT VPC",
+		"Value": { "Fn::Sub" : "rtb-b6f01bcc" },
+		"Export": { "Name" : { "Fn::Sub" : "MGMT-DMZRTB" }}
+	},
+	
+	"PRODMNRTB" : {
+		"Condition": "Route",
+		"Description": "Main Route Table for Prod VPC",
+		"Value": { "Fn::Sub" : "rtb-48d73d32" },
+		"Export": { "Name" : { "Fn::Sub" : "PROD-MNRTB" }}
+	},
+	
+	"PRODDMZRTB" : {
+		"Condition": "Route",
+		"Description": "DMZ Route Table for Prod VPC",
+		"Value": { "Fn::Sub" : "rtb-7bd13b01" },
+		"Export": { "Name" : { "Fn::Sub" : "PROD-DMZRTB" }}
+	},
+	
+	"SITMNRTB" : {
+		"Condition": "Route",
+		"Description": "Main Route Table for SIT VPC",
+		"Value": { "Fn::Sub" : "rtb-8c9d77f6" },
+		"Export": { "Name" : { "Fn::Sub" : "SIT-MNRTB" }}
+	},
+	
+	"SITDMZRTB" : {
+		"Condition": "Route",
+		"Description": "DMZ Route Table for SIT VPC",
+		"Value": { "Fn::Sub" : "rtb-649e741e" },
+		"Export": { "Name" : { "Fn::Sub" : "SIT-DMZRTB" }}
+	},
+	
+	"DEVMNRTB" : {
+		"Condition": "Route",
+		"Description": "Main Route Table for Dev VPC",
+		"Value": { "Fn::Sub" : "rtb-b49973ce" },
+		"Export": { "Name" : { "Fn::Sub" : "DEV-MNRTB" }}
+	},
+	
+	"DRMGMTMNRTB" : {
+		"Condition": "DRRoute",
+		"Description": "Main Route Table for DR MGMT VPC",
+		"Value": { "Fn::Sub" : "rtb-c49080ad" },
+		"Export": { "Name" : { "Fn::Sub" : "DRMGMT-MNRTB" }}
+	},
+
+	"DRMGMTDMZRTB" : {
+		"Condition": "DRRoute",
+		"Description": "DMZ Route Table for DR MGMT VPC",
+		"Value": { "Fn::Sub" : "rtb-8a9282e3" },
+		"Export": { "Name" : { "Fn::Sub" : "DRMGMT-DMZRTB" }}
+	},
+	
+	"DRPRODMNRTB" : {
+		"Condition": "DRRoute",
+		"Description": "Main Route Table for DR Prod VPC",
+		"Value": { "Fn::Sub" : "rtb-52efff3b" },
+		"Export": { "Name" : { "Fn::Sub" : "DRPROD-MNRTB" }}
+	},
+	
+	"DRPRODDMZRTB" : {
+		"Condition": "DRRoute",
+		"Description": "DMZ Route Table for DR Prod VPC",
+		"Value": { "Fn::Sub" : "rtb-dc9080b5" },
+		"Export": { "Name" : { "Fn::Sub" : "DRPROD-DMZRTB" }}
+	}	
+}
+}
+
+
+	
+						
+						
+						
+	
+			  
+	
+				  
+				 

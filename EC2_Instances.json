@@ -1,0 +1,979 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "AWS CloudFormation template that will create EC2 Instances in SIT Environment",
+	"Parameters": {
+		"EnvType": {
+			"Description": "Environment type.",
+			"Default": "SIT",
+			"Type": "String",
+			"AllowedValues": ["MGMT", "Dev", "SIT", "SITB", "Prod", "DR"],
+			"ConstraintDescription": "Must be a MGMT, Dev. SIT, SITB, Prod or DR"
+		},
+		"VPC": {
+			"Description": "Please select the SIT VPC from the drop down List",
+			"Type": "AWS::EC2::VPC::Id"
+		},
+		"KeyName": {
+			"Description": "Please select the SIT SSH Key from the drop down list",
+			"Type": "AWS::EC2::KeyPair::KeyName"
+		}
+	},
+	"Conditions": {
+		"SIT": {"Fn::Equals": [{"Ref": "EnvType"}, "SIT"]}
+	},
+	"Resources": {
+		"ELBSG" : {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "SIT",
+			"Properties": {
+			"GroupName": "THFSITVPC-ELBSG",
+			"GroupDescription": "ELB Security Group of SIT VPC",
+			"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{	
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "0.0.0.0/0"
+					},
+					
+					{	
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{	
+						"IpProtocol": "tcp",
+						"FromPort": "8080",
+						"ToPort": "8080",
+						"CidrIp": "0.0.0.0/0"
+					}
+					
+					],
+				"SecurityGroupEgress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.38.3.0/24"
+					}
+					]
+				}
+		},
+		"SITDMZSG" : {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "SIT",
+			"Properties": {
+				"GroupName": "THFSITVPC-DMZSG",
+				"GroupDescription": "DMZ Security Group of SIT VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.38.3.0/24"
+					},
+				{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.38.5.0/24"
+					},
+				{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "10.38.3.0/24"
+					},
+				{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "10.38.5.0/24"
+					},
+				{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.1.0/24"
+					},
+				{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.2.0/24"
+					}],
+				"SecurityGroupEgress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "0.0.0.0/0"
+					},
+				{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "0.0.0.0/0"
+					}
+					]
+				}
+				},
+
+		
+		"SITWEBSG": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "SIT",
+			"Properties": {
+				"GroupName": "THFSITVPC-WEBSG",
+				"GroupDescription": "Webserver Security Group of SIT VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"SourceSecurityGroupId" : { "Ref" : "ELBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.40.1.0/24"
+					},
+                    {
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"SourceSecurityGroupId" : { "Ref" : "ELBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "8080",
+						"ToPort": "8080",
+						"SourceSecurityGroupId" : { "Ref" : "ELBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "8080",
+						"ToPort": "8080",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.2.0/24"
+					}
+				],
+				"SecurityGroupEgress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "25",
+						"ToPort": "25",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "465",
+						"ToPort": "465",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4502",
+						"ToPort": "4502",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7402",
+						"ToPort": "7402",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.38.3.0/24"
+					}
+				]
+			}
+		},
+		"SITPUBSG": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "SIT",
+			"Properties": {
+				"GroupName": "THFSITVPC-PUBSG",
+				"GroupDescription": "PUBLISHER Security Group of SIT VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"SourceSecurityGroupId" : { "Ref" : "SITWEBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4502",
+						"ToPort": "4502",
+						"SourceSecurityGroupId" : { "Ref" : "SITWEBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7402",
+						"ToPort": "7402",
+						"SourceSecurityGroupId" : { "Ref" : "SITWEBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"SourceSecurityGroupId" : { "Ref" : "SITWEBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "199.15.215.186/32"
+					}
+				],
+				"SecurityGroupEgress": [{   
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "25",
+						"ToPort": "25",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "389",
+						"ToPort": "389",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"CidrIp": "10.38.5.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "465",
+						"ToPort": "465",
+						"CidrIp": "0.0.0.0/0"
+					}
+				]
+			}
+		},
+		"SITAUTSG": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "SIT",
+			"Properties": {
+				"GroupName": "THFSITVPC-AUTSG",
+				"GroupDescription": "AUTHOR Security Group of SIT VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"SourceSecurityGroupId" : { "Ref" : "ELBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4502",
+						"ToPort": "4502",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "4502",
+						"ToPort": "4502",
+						"CidrIp": "10.40.2.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7402",
+						"ToPort": "7402",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7402",
+						"ToPort": "7402",
+						"CidrIp": "10.40.2.0/24"
+					}
+				],
+				"SecurityGroupEgress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "4503",
+						"ToPort": "4503",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "7403",
+						"ToPort": "7403",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "25",
+						"ToPort": "25",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "10.38.3.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"CidrIp": "10.38.5.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "465",
+						"ToPort": "465",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"CidrIp": "10.38.3.0/24"
+					}
+				]
+			}
+		},
+		"SITADSG": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "SIT",
+			"Properties": {
+				"GroupName": "THFSITVPC-ADSG",
+				"GroupDescription": "AD Security Group of SIT VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "636",
+						"ToPort": "636",
+						"SourceSecurityGroupId" : { "Ref" : "SITPUBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "389",
+						"ToPort": "389",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "389",
+						"ToPort": "389",
+						"SourceSecurityGroupId" : { "Ref" : "SITPUBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "3389",
+						"ToPort": "3389",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "3389",
+						"ToPort": "3389",
+						"CidrIp": "10.40.2.0/24"
+					}
+				]
+			}
+		},
+		"SITDBSG": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Condition": "SIT",
+			"Properties": {
+				"GroupName": "THFSITVPC-DBSG",
+				"GroupDescription": "DB Security Group of SIT VPC",
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"SecurityGroupIngress": [{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"SourceSecurityGroupId" : { "Ref" : "SITAUTSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "1433",
+						"ToPort": "1433",
+						"SourceSecurityGroupId" : { "Ref" : "SITPUBSG" }
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "3389",
+						"ToPort": "3389",
+						"CidrIp": "10.40.1.0/24"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "3389",
+						"ToPort": "3389",
+						"CidrIp": "10.40.2.0/24"
+					}
+				]
+			}
+		},
+		"SITELB" : {
+			"Type" : "AWS::ElasticLoadBalancingV2::LoadBalancer",
+			"Properties" : {    
+				"LoadBalancerAttributes" :
+					[ { "Key" : "access_logs.s3.enabled", "Value" : "true" },
+					  { "Key" : "access_logs.s3.bucket", "Value" : "hf-accesslogs" },
+                      { "Key" : "access_logs.s3.prefix", "Value" : "SIT_ELB" }
+			    	],
+				"Name" : "THFSITWebserverELB",
+				"Scheme" : "internet-facing",
+				"SecurityGroups" : [ { "Ref" : "ELBSG" } ],
+				"Subnets" : [ 
+					{"Fn::ImportValue" : {"Fn::Sub" : "SIT-APPSUB1"}},
+					{"Fn::ImportValue" : {"Fn::Sub" : "SIT-APPSUB2"}}
+				],
+				"Tags" : [{
+					"Key": "Name",
+					"Value": "THFSITWebserverELB"
+					}],
+				"Type" : "application",
+				"IpAddressType" : "ipv4"
+			}
+		},
+		"SITELBLISTENER" : {
+			"Type" : "AWS::ElasticLoadBalancingV2::Listener",
+			"Properties" : {
+				"Certificates" : [ 
+							{
+								"CertificateArn" : "arn:aws:acm:us-east-1:199968258943:certificate/251b2e0e-015b-44a2-bc8c-ef3a945c84d2"
+							}
+							],
+				"DefaultActions" : 
+							[{
+								"Type" : "forward",
+								"TargetGroupArn" : { "Ref" : "SITELBTargetGroup" }
+							}],	
+								
+				"LoadBalancerArn" : { "Ref" : "SITELB" },
+				"Port" : "443",
+				"Protocol" : "HTTPS"
+				
+			}
+		},
+				
+		"SITELBTargetGroup" : {
+			"Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
+			"Properties" : {
+				"HealthCheckIntervalSeconds" : "60",
+				"HealthCheckPath" : "/home.html",
+				"HealthCheckPort" : "80",
+				"HealthCheckProtocol" : "HTTP",
+				"HealthCheckTimeoutSeconds" : "30",
+				"HealthyThresholdCount" : "3",
+				"Matcher" : {
+					"HttpCode" : "200"
+				},
+				"Name" : "THFSITWEBTargetGroup",
+				"Port" : "80",
+				"Protocol" : "HTTP",
+				"Tags" : [ { 
+					"Key": "Name",
+					"Value": "THFSITWEBTargetGroup"
+					}],
+				"TargetGroupAttributes" : [{
+					"Key": "deregistration_delay.timeout_seconds",
+					"Value": "30"
+					}],
+				"Targets": [
+					{ "Id": {"Ref" : "SITWS"}, "Port": "80" }
+					],
+				"TargetType" : "instance",
+				"UnhealthyThresholdCount" : "3",
+				"VpcId" : {"Fn::ImportValue" : {"Fn::Sub" : "SIT-VPCId"}}
+			}
+		},
+				
+		"SITWS": {
+			"Type": "AWS::EC2::Instance",
+			"Condition": "SIT",						
+			"Properties": {
+				"ImageId": "ami-a310b7d9",
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"InstanceType": "t2.2xlarge",
+				"AvailabilityZone": "us-east-1a",
+				"InstanceInitiatedShutdownBehavior": "stop",
+				"IamInstanceProfile" : "S3Readonly",
+				"SubnetId": {
+					"Fn::ImportValue": {
+						"Fn::Sub": "SIT-APPSUB1"
+					}
+				},
+				"PrivateIpAddress" : "10.38.3.5",
+				"DisableApiTermination" : "true",
+				"SecurityGroupIds": [{
+					"Ref": "SITWEBSG"
+				}],
+				"BlockDeviceMappings": [{
+						"DeviceName": "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "50" , "VolumeType" : "gp2" }
+					},
+					
+					{   
+						"DeviceName": "/dev/sdf",
+						"Ebs" : { "VolumeSize" : "300", "VolumeType" : "gp2" }
+					}		
+				],
+				"UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash -xe \n",
+					"cd /tmp \n",
+					"/usr/bin/aws s3 cp s3://hfpythonscripts/user_admin.bash . --region us-east-1 \n",
+					"/bin/chmod u+x /tmp/user_admin.bash \n",
+					"/usr/bin/dos2unix /tmp/user_admin.bash \n",
+					"/tmp/user_admin.bash create web \n",
+					"/usr/bin/aws s3 cp s3://hfpythonscripts/amazon_ses.py /usr/local/bin/amazon_ses.py \n",
+					"/usr/bin/aws s3 cp s3://hfpythonscripts/amazon_ses_raw.py /usr/local/bin/amazon_ses_raw.py \n",
+					"/bin/chmod u+x /usr/local/bin/amazon_ses.py /usr/local/bin/amazon_ses_raw.py \n",
+					"/usr/bin/dos2unix /usr/local/bin/amazon_ses.py \n",
+					"/usr/bin/dos2unix /usr/local/bin/amazon_ses_raw.py \n",
+					"echo \n"
+					]]}},					
+				"Tags" : [{
+					"Key": "Name",
+					"Value": "THFWIPAWSQ002"
+					},
+					{
+						"Key": "OSBackup",
+						"Value": "True"						
+					}, 
+					{
+						"Key": "WormBackup",
+						"Value": "False"						
+					}, 
+					{
+						"Key": "Environment",
+						"Value": "SIT"						
+					}									
+				]
+			}
+		},
+		"SITPUB": {
+			"Type": "AWS::EC2::Instance",
+			"Condition": "SIT",
+			"Properties": {
+				"ImageId": "ami-0b12b571",
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"InstanceType": "r4.2xlarge",
+				"AvailabilityZone": "us-east-1a",
+				"InstanceInitiatedShutdownBehavior": "stop",
+				"IamInstanceProfile" : "S3Readonly",
+				"SubnetId": {
+					"Fn::ImportValue": {
+						"Fn::Sub": "SIT-APPSUB1"
+					}
+				},
+				"PrivateIpAddress" : "10.38.3.6",
+				"DisableApiTermination" : "true",
+				"SecurityGroupIds": [{
+					"Ref": "SITPUBSG"
+				}],
+				"BlockDeviceMappings": [{
+						"DeviceName": "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "50" , "VolumeType" : "gp2" }
+					},
+					
+					{   
+						"DeviceName": "/dev/sdf",
+						"Ebs" : { "VolumeSize" : "300", "VolumeType" : "gp2" }
+					}		
+
+				],
+				"UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash -xe \n",
+					"cd /tmp \n",
+					"/usr/bin/aws s3 cp s3://hfpythonscripts/user_admin.bash . --region us-east-1 \n",
+					"/bin/chmod u+x /tmp/user_admin.bash \n",
+					"/usr/bin/dos2unix /tmp/user_admin.bash \n",
+					"/tmp/user_admin.bash create pub \n", 
+					"/usr/bin/aws s3 cp s3://hfpythonscripts/amazon_ses.py /usr/local/bin/amazon_ses.py \n",
+					"/usr/bin/aws s3 cp s3://hfpythonscripts/amazon_ses_raw.py /usr/local/bin/amazon_ses_raw.py \n",
+					"/bin/chmod u+x /usr/local/bin/amazon_ses.py /usr/local/bin/amazon_ses_raw.py \n",
+					"/usr/bin/dos2unix /usr/local/bin/amazon_ses.py \n",
+					"/usr/bin/dos2unix /usr/local/bin/amazon_ses_raw.py \n",
+					"echo \n"
+					]]}},
+				"Tags" : [{
+					"Key": "Name",
+					"Value": "THFWIPAWSQ003"
+					},
+					{
+						"Key": "OSBackup",
+						"Value": "True"						
+					}, 
+					{
+						"Key": "WormBackup",
+						"Value": "False"						
+					}, 
+					{
+						"Key": "Environment",
+						"Value": "SIT"						
+					}						
+					]
+			}
+		},
+		"SITAUTHOR": {
+			"Type": "AWS::EC2::Instance",
+			"Condition": "SIT",
+			"Properties": {
+				"ImageId": "ami-0b12b571",
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"InstanceType": "r4.2xlarge",
+				"AvailabilityZone": "us-east-1a",
+				"InstanceInitiatedShutdownBehavior": "stop",
+				"IamInstanceProfile" : "S3Readonly",
+				"SubnetId": {
+					"Fn::ImportValue": {
+						"Fn::Sub": "SIT-APPSUB1"
+					}
+				},
+				"PrivateIpAddress" : "10.38.3.7",
+				"DisableApiTermination" : "true",
+				"SecurityGroupIds": [{
+					"Ref": "SITAUTSG"
+				}],
+				"BlockDeviceMappings": [{
+						"DeviceName": "/dev/sda1",
+						"Ebs" : { "VolumeSize" : "50" , "VolumeType" : "gp2" }
+					},
+					
+					{   
+						"DeviceName": "/dev/sdf",
+						"Ebs" : { "VolumeSize" : "300", "VolumeType" : "gp2" }
+					}		
+
+				],
+				"UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+					"#!/bin/bash -xe \n",
+					"cd /tmp \n",
+					"/usr/bin/aws s3 cp s3://hfpythonscripts/user_admin.bash . --region us-east-1 \n",
+					"/bin/chmod u+x /tmp/user_admin.bash \n",
+					"/usr/bin/dos2unix /tmp/user_admin.bash \n",
+					"/tmp/user_admin.bash create auth \n", 
+					"/usr/bin/aws s3 cp s3://hfpythonscripts/amazon_ses.py /usr/local/bin/amazon_ses.py \n",
+					"/usr/bin/aws s3 cp s3://hfpythonscripts/amazon_ses_raw.py /usr/local/bin/amazon_ses_raw.py \n",
+					"/bin/chmod u+x /usr/local/bin/amazon_ses.py /usr/local/bin/amazon_ses_raw.py \n",
+					"/usr/bin/dos2unix /usr/local/bin/amazon_ses.py \n",
+					"/usr/bin/dos2unix /usr/local/bin/amazon_ses_raw.py \n",
+					"echo \n"
+					]]}},
+				"Tags" : [{
+					"Key": "Name",
+					"Value": "THFWIPAWSQ004"
+					},
+					{
+						"Key": "OSBackup",
+						"Value": "True"						
+					}, 
+					{
+						"Key": "WormBackup",
+						"Value": "False"						
+					}, 
+					{
+						"Key": "Environment",
+						"Value": "SIT"						
+					}
+					]
+			}
+		},
+		"SITAD": {
+			"Type": "AWS::EC2::Instance",
+			"Condition": "SIT",
+			"Properties": {
+				"ImageId": "ami-cf644fb4",
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"InstanceType": "t2.medium",
+				"AvailabilityZone": "us-east-1a",
+				"InstanceInitiatedShutdownBehavior": "stop",
+				"SubnetId": {
+					"Fn::ImportValue": {
+						"Fn::Sub": "SIT-APPSUB1"
+					}
+				},
+				"PrivateIpAddress" : "10.38.3.9",
+				"DisableApiTermination" : "true",
+				"SecurityGroupIds": [{
+					"Ref": "SITADSG"
+				}],
+				"BlockDeviceMappings": [{
+					"DeviceName": "/dev/sda1",
+					"Ebs" : { "VolumeSize" : "80" , "VolumeType" : "gp2" }
+				}],
+				"Tags" : [{
+					"Key": "Name",
+					"Value": "THFWIPAWSQ006"
+					},
+					{
+						"Key": "OSBackup",
+						"Value": "True"						
+					}, 
+					{
+						"Key": "WormBackup",
+						"Value": "False"						
+					}, 
+					{
+						"Key": "Environment",
+						"Value": "SIT"						
+					}
+				]
+			}
+		},
+
+		"SITDB": {
+			"Type": "AWS::EC2::Instance",
+			"Condition": "SIT",
+			"Properties": {
+				"ImageId": "ami-b031d4ca",
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"InstanceType": "m4.large",
+				"AvailabilityZone": "us-east-1a",
+				"InstanceInitiatedShutdownBehavior": "stop",
+				"SubnetId": {
+					"Fn::ImportValue": {
+						"Fn::Sub": "SIT-DBSUB1"
+					}
+				},
+				"PrivateIpAddress" : "10.38.5.5",
+				"DisableApiTermination" : "true",
+				"SecurityGroupIds": [{
+					"Ref": "SITDBSG"
+				}],
+				"BlockDeviceMappings": [{
+					"DeviceName": "/dev/sda1",
+					"Ebs" : { "VolumeSize" : "320" , "VolumeType" : "gp2" }
+				}],
+				"Tags" : [{
+					"Key": "Name",
+					"Value": "THFWIPAWSQ005"
+				
+					},
+					{
+						"Key": "OSBackup",
+						"Value": "True"						
+					}, 
+					{
+						"Key": "WormBackup",
+						"Value": "False"						
+					}, 
+					{
+						"Key": "Environment",
+						"Value": "SIT"						
+					}				
+				]
+			}
+		},
+		"SITNAT" : {
+			"Type" : "AWS::EC2::Instance",
+			"Condition": "SIT",
+			"Properties": {
+				"SubnetId" : {"Fn::ImportValue" : {"Fn::Sub" : "SIT-DMZSUB1"}},
+				"ImageId" : "ami-293a183f",
+				"InstanceType" : "t2.medium",
+				"IamInstanceProfile" : "S3Readonly",
+				"DisableApiTermination" : "true",
+				"SourceDestCheck" : "false",
+				"KeyName" : { "Ref" : "KeyName" },
+				"SecurityGroupIds" : [{ "Ref" : "SITDMZSG" }],
+				"Tags" : [ 
+					{
+						"Key" : "Name",
+						"Value" : "NAT_SIT"	
+					},
+					{
+						"Key": "OSBackup",
+						"Value": "True"	
+					}, 
+					{
+						"Key": "WormBackup",
+						"Value": "False"	
+					}, 
+					{
+						"Key": "Environment",
+						"Value": "SIT"
+					}									
+					]								
+			}
+      	},
+		"SITRoute": {
+			"Type" : "AWS::EC2::Route",
+			"Condition": "SIT",
+			"Properties": {
+				"DestinationCidrBlock" : "0.0.0.0/0", 
+				"InstanceId": { "Ref" : "SITNAT" },
+				"RouteTableId": {"Fn::ImportValue" : {"Fn::Sub" : "SIT-MNRTB"}}
+			}
+		},
+		"NATEIP": {
+			"Type" : "AWS::EC2::EIP",
+			"Properties" : {
+				"InstanceId": { "Ref" : "SITNAT" }}
+		}
+
+		
+	}
+}	
